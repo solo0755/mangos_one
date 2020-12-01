@@ -639,7 +639,9 @@ void ObjectMgr::LoadCreatureTemplates()
         }
 
         if (!displayScaleEntry)
+        {
             sLog.outErrorDb("Creature (Entry: %u) has nonexistent modelid in modelid_1/modelid_2/modelid_3/modelid_4", cInfo->Entry);
+        }
 
         if (!cInfo->MinLevel)
         {
@@ -1133,7 +1135,9 @@ uint32 ObjectMgr::GetModelForRace(uint32 sourceModelId, uint32 racemask)
     for (CreatureModelRaceMap::const_iterator itr = bounds.first; itr != bounds.second; ++itr)
     {
         if (!(itr->second.racemask & racemask))
+        {
             continue;
+        }
 
         if (itr->second.creature_entry)
         {
@@ -1426,7 +1430,9 @@ void ObjectMgr::LoadCreatures()
     for (uint32 i = 0; i < sCreatureStorage.GetMaxEntry(); ++i)
         if (CreatureInfo const* cInfo = sCreatureStorage.LookupEntry<CreatureInfo>(i))
             if (cInfo->HeroicEntry)
+            {
                 heroicCreatures.insert(cInfo->HeroicEntry);
+            }
 
     BarGoLink bar(result->GetRowCount());
 
@@ -1621,7 +1627,7 @@ void ObjectMgr::LoadGameObjects()
                           //             7                         8                         9                         10                        11                            12                           13                    14
                           "`gameobject`.`rotation0`, `gameobject`.`rotation1`, `gameobject`.`rotation2`, `gameobject`.`rotation3`, `gameobject`.`spawntimesecs`, `gameobject`.`animprogress`, `gameobject`.`state`, `gameobject`.`spawnMask`,"
                           //             15                      16                          17
-                          "`gameobject`.`event`, `pool_gameobject`.`pool_entry`, `pool_gameobject_template`.`pool_entry` "
+                          "`game_event_gameobject`.`event`, `pool_gameobject`.`pool_entry`, `pool_gameobject_template`.`pool_entry` "
                           "FROM `gameobject` "
                           "LEFT OUTER JOIN `game_event_gameobject` ON `gameobject`.`guid` = `game_event_gameobject`.`guid` "
                           "LEFT OUTER JOIN `pool_gameobject` ON `gameobject`.`guid` = `pool_gameobject`.`guid` "
@@ -1991,7 +1997,9 @@ void ObjectMgr::LoadItemPrototypes()
         {
             /* to many errors, and possible not all items really used in game
             if (dbcitem)
+            {
                 sLog.outErrorDb("Item (Entry: %u) doesn't exists in DB, but must exist.",i);
+            }
             */
             continue;
         }
@@ -2133,7 +2141,9 @@ void ObjectMgr::LoadItemPrototypes()
             }
         }
         else if (proto->RequiredReputationRank > MIN_REPUTATION_RANK)
+        {
             sLog.outErrorDb("Item (Entry: %u) has RequiredReputationFaction ==0 but RequiredReputationRank > 0, rank setting is useless.", i);
+        }
 
         if (proto->Stackable == 0)
         {
@@ -2349,7 +2359,9 @@ void ObjectMgr::LoadItemPrototypes()
             {
                 uint32 mask = 1 << j;
                 if (!(proto->BagFamily & mask))
+                {
                     continue;
+                }
 
                 ItemBagFamilyEntry const* bf = sItemBagFamilyStore.LookupEntry(j + 1);
                 if (!bf)
@@ -2361,7 +2373,9 @@ void ObjectMgr::LoadItemPrototypes()
         }
 
         if (proto->TotemCategory && !sTotemCategoryStore.LookupEntry(proto->TotemCategory))
+        {
             sLog.outErrorDb("Item (Entry: %u) has wrong TotemCategory (%u)", i, proto->TotemCategory);
+        }
 
         for (int j = 0; j < MAX_ITEM_PROTO_SOCKETS; ++j)
         {
@@ -2373,7 +2387,9 @@ void ObjectMgr::LoadItemPrototypes()
         }
 
         if (proto->GemProperties && !sGemPropertiesStore.LookupEntry(proto->GemProperties))
+        {
             sLog.outErrorDb("Item (Entry: %u) has wrong GemProperties (%u)", i, proto->GemProperties);
+        }
 
         if (proto->RequiredDisenchantSkill < -1)
         {
@@ -2419,7 +2435,9 @@ void ObjectMgr::LoadItemPrototypes()
         {
             // lot DB cases
             if (proto->RequiredDisenchantSkill >= 0)
+            {
                 ERROR_DB_STRICT_LOG("Item (Entry: %u) marked as disenchantable by RequiredDisenchantSkill, but not have disenchanting loot id.", i);
+            }
         }
 
         if (proto->FoodType >= MAX_PET_DIET)
@@ -3225,7 +3243,9 @@ void ObjectMgr::LoadPlayerInfo()
 
             // skip expansion races if not playing with expansion
             if (sWorld.getConfig(CONFIG_UINT32_EXPANSION) < EXPANSION_TBC && (race == RACE_BLOODELF || race == RACE_DRAENEI))
+            {
                 continue;
+            }
 
             // fatal error if no level 1 data
             if (!pInfo->levelInfo || pInfo->levelInfo[0].stats[0] == 0)
@@ -3759,7 +3779,9 @@ void ObjectMgr::LoadQuests()
     {
         // skip post-loading checks for disabled quests
         if (DisableMgr::IsDisabledFor(DISABLE_TYPE_QUEST, iter->first))
+        {
             continue;
+        }
 
         Quest* qinfo = iter->second;
 
@@ -5182,7 +5204,7 @@ void ObjectMgr::ReturnOrDeleteOldMails(bool serverUp)
 
         // deletemail = true;
         // delmails << m->messageID << ", ";
-        CharacterDatabase.PExecute("DELETE FROM `mail` WHERE id` = '%u'", m->messageID);
+        CharacterDatabase.PExecute("DELETE FROM `mail` WHERE `id` = '%u'", m->messageID);
         delete m;
         ++count;
     }
@@ -5971,6 +5993,13 @@ void ObjectMgr::SetHighestGuids()
         delete result;
     }
 
+    result = CharacterDatabase.Query("SELECT MAX(`id`) FROM `item_text`");
+    if (result)
+    {
+        m_ItemTextGuids.Set((*result)[0].GetUInt32() + 1);
+        delete result;
+    }
+
     // Cleanup other tables from nonexistent guids (>=m_hiItemGuid)
     CharacterDatabase.BeginTransaction();
     CharacterDatabase.PExecute("DELETE FROM `character_inventory` WHERE `item` >= '%u'", m_ItemGuids.GetNextAfterMaxUsed());
@@ -6118,7 +6147,9 @@ void ObjectMgr::LoadGameObjectLocales()
                 if (idx >= 0)
                 {
                     if ((int32)data.CastBarCaption.size() <= idx)
+                    {
                         data.CastBarCaption.resize(idx + 1);
+                    }
 
                     data.CastBarCaption[idx] = str;
                 }
@@ -6306,7 +6337,9 @@ void ObjectMgr::LoadGameobjectInfo()
                 }
                 /* disable check for while, too many nonexistent spells
                 if (goInfo->trap.spellId)                   // spell
+                {
                     CheckGOSpellId(goInfo,goInfo->trap.spellId,3);
+                }
                 */
                 break;
             }
@@ -6345,7 +6378,9 @@ void ObjectMgr::LoadGameobjectInfo()
                 }
                 /* disable check for while, too many nonexistent spells
                 if (goInfo->goober.spellId)                 // spell
+                {
                     CheckGOSpellId(goInfo,goInfo->goober.spellId,10);
+                }
                 */
                 CheckGONoDamageImmuneId(goInfo, goInfo->goober.noDamageImmune, 11);
                 if (goInfo->goober.linkedTrapId)            // linked trap
@@ -6930,9 +6965,13 @@ struct SQLSpellLoader : public SQLStorageLoaderBase<SQLSpellLoader, SQLHashStora
     void default_fill(uint32 field_pos, S src, D& dst)
     {
         if (field_pos == LOADED_SPELLDBC_FIELD_POS_EQUIPPED_ITEM_CLASS)
+        {
             dst = D(-1);
+        }
         else
+        {
             dst = D(src);
+        }
     }
 
     void default_fill_to_str(uint32 field_pos, char const* /*src*/, char*& dst)
@@ -6962,7 +7001,9 @@ void ObjectMgr::LoadSpellTemplate()
         // check data correctness
         SpellEntry const* spellEntry = sSpellTemplate.LookupEntry<SpellEntry>(i);
         if (!spellEntry)
+        {
             continue;
+        }
 
         // insert serverside spell data
         if (sSpellStore.GetNumRows() <= i)
@@ -6971,7 +7012,9 @@ void ObjectMgr::LoadSpellTemplate()
             continue;
         }
         else
+        {
             sSpellStore.InsertEntry(const_cast<SpellEntry*>(spellEntry), i);
+        }
     }
 }
 
@@ -7854,7 +7897,7 @@ bool PlayerCondition::Meets(Player const* player, Map const* map, WorldObject co
         {
             Unit::SpellAuraHolderMap const& auras = player->GetSpellAuraHolderMap();
             for (Unit::SpellAuraHolderMap::const_iterator itr = auras.begin(); itr != auras.end(); ++itr)
-                if ((itr->second->GetSpellProto()->HasAttribute(SPELL_ATTR_CASTABLE_WHILE_MOUNTED) || itr->second->GetSpellProto()->HasAttribute(SPELL_ATTR_UNK4)) && itr->second->GetSpellProto()->SpellVisual == 3580)
+                if ((itr->second->GetSpellProto()->HasAttribute(SPELL_ATTR_CASTABLE_WHILE_MOUNTED) || itr->second->GetSpellProto()->HasAttribute(SPELL_ATTR_ABILITY)) && itr->second->GetSpellProto()->SpellVisual == 3580)
                 {
                     return true;
                 }
@@ -8793,7 +8836,7 @@ void ObjectMgr::LoadMailLevelRewards()
     m_mailLevelRewardMap.clear();                           // for reload case
 
     uint32 count = 0;
-    QueryResult* result = WorldDatabase.Query("SELECT level, raceMask, mailTemplateId, senderEntry FROM mail_level_reward");
+    QueryResult* result = WorldDatabase.Query("SELECT `level`, `raceMask`, `mailTemplateId`, `senderEntry` FROM `mail_level_reward`");
 
     if (!result)
     {
@@ -9168,7 +9211,9 @@ void ObjectMgr::LoadActiveEntities(Map* _map)
         for (ActiveCreatureGuidsOnMap::const_iterator itr = bounds.first; itr != bounds.second; ++itr)
         {
             CreatureData const& data = mCreatureDataMap[itr->second];
-            { _map->ForceLoadGrid(data.posX, data.posY); }
+            {
+                _map->ForceLoadGrid(data.posX, data.posY);
+            }
         }
     }
 }
@@ -9219,7 +9264,9 @@ void ObjectMgr::LoadGossipMenu(std::set<uint32>& gossipScriptSet)
         {
             ScriptChainMap const* scm = sScriptMgr.GetScriptChainMap(DBS_ON_GOSSIP);
             if (!scm)
+            {
                 continue;
+            }
 
             if (scm->find(gMenu.script_id) == scm->end())
             {
@@ -9422,7 +9469,9 @@ void ObjectMgr::LoadGossipMenuItems(std::set<uint32>& gossipScriptSet)
         {
             ScriptChainMap const* scm = sScriptMgr.GetScriptChainMap(DBS_ON_GOSSIP);
             if (!scm)
+            {
                 continue;
+            }
 
             if (scm->find(gMenuItem.action_script_id) == scm->end())
             {
@@ -9574,7 +9623,9 @@ bool ObjectMgr::IsVendorItemValid(bool isTemplate, char const* tableName, uint32
     if (ExtendedCost && !sItemExtendedCostStore.LookupEntry(ExtendedCost))
     {
         if (pl)
+        {
             ChatHandler(pl).PSendSysMessage(LANG_EXTENDED_COST_NOT_EXIST, ExtendedCost);
+        }
         else
             sLog.outErrorDb("Table `%s` contain item (Entry: %u) with wrong ExtendedCost (%u) for %s %u, ignoring",
                             tableName, item_id, ExtendedCost, idStr, vendor_entry);
@@ -9614,7 +9665,9 @@ bool ObjectMgr::IsVendorItemValid(bool isTemplate, char const* tableName, uint32
     VendorItemData const* tItems = isTemplate ? NULL : GetNpcVendorTemplateItemList(vendor_entry);
 
     if (!vItems && !tItems)
-        { return true; }                                        // later checks for non-empty lists
+    {
+        return true;                                         // later checks for non-empty lists
+    }
 
     if (vItems && vItems->FindItem(item_id))
     {

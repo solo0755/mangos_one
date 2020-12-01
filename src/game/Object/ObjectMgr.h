@@ -360,6 +360,7 @@ enum ConditionSource                                        // From where was th
     CONDITION_FROM_SPELL_AREA       = 7,                    // Used to check a condition from spell_area table
     CONDITION_FROM_RESERVED_1       = 8,                    // reserved for 3.x and later
     CONDITION_FROM_DBSCRIPTS        = 9,                    // Used to check a condition from DB Scripts Engine
+    CONDITION_AREA_TRIGGER          = 10,                   // Used to check a condition from CMSG_AREATRIGGER
 };
 
 class PlayerCondition
@@ -812,7 +813,7 @@ class ObjectMgr
         }
         uint32 GenerateItemTextID()
         {
-            return m_ItemGuids.Generate();
+            return m_ItemTextGuids.Generate();
         }
         uint32 GenerateMailID()
         {
@@ -1149,7 +1150,9 @@ class ObjectMgr
         static inline void GetLocaleString(const StringVector& data, int loc_idx, std::string& value)
         {
             if (data.size() > size_t(loc_idx) && !data[loc_idx].empty())
+            {
                 value = data[loc_idx];
+            }
         }
 
         int GetOrNewIndexForLocale(LocaleConstant loc);
@@ -1233,6 +1236,7 @@ class ObjectMgr
         // first free low guid for selected guid type
         ObjectGuidGenerator<HIGHGUID_PLAYER>     m_CharGuids;
         ObjectGuidGenerator<HIGHGUID_ITEM>       m_ItemGuids;
+        ObjectGuidGenerator<HIGHGUID_ITEM>       m_ItemTextGuids;
         ObjectGuidGenerator<HIGHGUID_CORPSE>     m_CorpseGuids;
         ObjectGuidGenerator<HIGHGUID_GROUP>      m_GroupGuids;
 

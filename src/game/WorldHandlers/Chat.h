@@ -28,6 +28,7 @@
 #include "Common.h"
 #include "SharedDefines.h"
 #include "ObjectGuid.h"
+#include "Language.h"
 
 struct AreaTrigger;
 struct AreaTriggerEntry;
@@ -50,13 +51,32 @@ class Unit;
 
 class ChatCommand
 {
-    public:
-        const char*        Name;
-        uint32             SecurityLevel;                   // function pointer required correct align (use uint32)
-        bool               AllowConsole;
-        bool (ChatHandler::*Handler)(char* args);
-        std::string        Help;
-        ChatCommand*       ChildCommands;
+public:
+    uint32             Id;
+    const char* Name;
+    uint32             SecurityLevel;                   // function pointer required correct align (use uint32)
+    bool               AllowConsole;
+    bool (ChatHandler::* Handler)(char* args);
+    std::string        Help;
+    ChatCommand* ChildCommands;
+
+      ChatCommand(
+          const char* pName,
+          uint32 pSecurityLevel,
+          bool pAllowConsole,
+          bool (ChatHandler::* pHandler)(char* args),
+          std::string pHelp,
+          ChatCommand* pChildCommands
+      )
+         : Id(-1)
+      {
+          Name = pName;
+          SecurityLevel = pSecurityLevel;
+          AllowConsole = pAllowConsole;
+          Handler = pHandler;
+          Help = pHelp;
+          ChildCommands = pChildCommands;
+      }
 };
 
 enum ChatCommandSearchResult
@@ -74,6 +94,12 @@ enum PlayerChatTag
     CHAT_TAG_GM                 = 0x4,
 };
 typedef uint32 ChatTagFlags;
+
+static uint32 ReputationRankStrIndex[MAX_REPUTATION_RANK] =
+{
+    LANG_REP_HATED,    LANG_REP_HOSTILE, LANG_REP_UNFRIENDLY, LANG_REP_NEUTRAL,
+    LANG_REP_FRIENDLY, LANG_REP_HONORED, LANG_REP_REVERED,    LANG_REP_EXALTED
+};
 
 class ChatHandler
 {
@@ -93,12 +119,17 @@ class ChatHandler
         void SendSysMessage(int32     entry);
         void PSendSysMessage(const char* format, ...) ATTR_PRINTF(2, 3);
         void PSendSysMessage(int32     entry, ...);
+        void PSendSysMessageMultiline(int32 entry, ...);
 
         bool ParseCommands(const char* text);
         ChatCommand const* FindCommand(char const* text);
 
         bool isValidChatMessage(const char* msg);
         bool HasSentErrorMessage() { return sentErrorMessage;}
+
+#ifdef ENABLE_PLAYERBOTS
+        WorldSession* GetSession() { return m_session; }
+#endif
 
         /**
         * \brief Prepare SMSG_GM_MESSAGECHAT/SMSG_MESSAGECHAT
@@ -143,7 +174,7 @@ class ChatHandler
 
         void SendGlobalSysMessage(const char* str, AccountTypes minSec = SEC_PLAYER);
 
-        bool SetDataForCommandInTable(ChatCommand* table, const char* text, uint32 security, std::string const& help);
+        bool SetDataForCommandInTable(ChatCommand* table, uint32 id, const char* text, uint32 security, std::string const& help);
         void ExecuteCommand(const char* text);
         void LogCommand(char const* fullcmd);
 
@@ -439,6 +470,7 @@ class ChatHandler
         bool HandleReloadLocalesPageTextCommand(char* args);
         bool HandleReloadLocalesPointsOfInterestCommand(char* args);
         bool HandleReloadLocalesQuestCommand(char* args);
+        bool HandleReloadLocalesCommandHelpCommand(char* args);
         bool HandleReloadLootTemplatesCreatureCommand(char* args);
         bool HandleReloadLootTemplatesDisenchantCommand(char* args);
         bool HandleReloadLootTemplatesFishingCommand(char* args);
@@ -617,6 +649,16 @@ class ChatHandler
         bool HandleMmap(char* args);
         bool HandleMmapTestArea(char* args);
         bool HandleMmapTestHeight(char* args);
+
+#ifdef ENABLE_PLAYERBOTS
+
+       // bool HandlePlayerbotConsoleCommand(char* args);
+        bool HandlePlayerbotCommand(char* args);
+        bool HandleRandomPlayerbotCommand(char* args);
+        bool HandleAhBotCommand(char* args);
+        bool HandleGuildTaskCommand(char* args);
+        //bool HandlePerfMonCommand(char* args);
+#endif
 
         //! Development Commands
         bool HandleSaveAllCommand(char* args);

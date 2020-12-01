@@ -866,11 +866,11 @@ void CreatureEventAI::ProcessAction(CreatureEventAI_Action const& action, uint32
 
             if (action.summon.duration)
             {
-                pCreature = m_creature->SummonCreature(action.summon.creatureId, 0.0f, 0.0f, 0.0f, 0.0f, TEMPSUMMON_TIMED_OOC_OR_DEAD_DESPAWN, action.summon.duration);
+                pCreature = m_creature->SummonCreature(action.summon.creatureId, 0.0f, 0.0f, 0.0f, 0.0f, TEMPSPAWN_TIMED_OOC_OR_DEAD_DESPAWN, action.summon.duration);
             }
             else
             {
-                pCreature = m_creature->SummonCreature(action.summon.creatureId, 0.0f, 0.0f, 0.0f, 0.0f, TEMPSUMMON_TIMED_OOC_DESPAWN, 0);
+                pCreature = m_creature->SummonCreature(action.summon.creatureId, 0.0f, 0.0f, 0.0f, 0.0f, TEMPSPAWN_TIMED_OOC_DESPAWN, 0);
             }
 
             if (!pCreature)
@@ -1107,11 +1107,11 @@ void CreatureEventAI::ProcessAction(CreatureEventAI_Action const& action, uint32
             Creature* pCreature = NULL;
             if (i->second.SpawnTimeSecs)
             {
-                pCreature = m_creature->SummonCreature(action.summon_id.creatureId, i->second.position_x, i->second.position_y, i->second.position_z, i->second.orientation, TEMPSUMMON_TIMED_OOC_OR_DEAD_DESPAWN, i->second.SpawnTimeSecs);
+                pCreature = m_creature->SummonCreature(action.summon_id.creatureId, i->second.position_x, i->second.position_y, i->second.position_z, i->second.orientation, TEMPSPAWN_TIMED_OOC_OR_DEAD_DESPAWN, i->second.SpawnTimeSecs);
             }
             else
             {
-                pCreature = m_creature->SummonCreature(action.summon_id.creatureId, i->second.position_x, i->second.position_y, i->second.position_z, i->second.orientation, TEMPSUMMON_TIMED_OOC_DESPAWN, 0);
+                pCreature = m_creature->SummonCreature(action.summon_id.creatureId, i->second.position_x, i->second.position_y, i->second.position_z, i->second.orientation, TEMPSPAWN_TIMED_OOC_DESPAWN, 0);
             }
 
             if (!pCreature)
@@ -1312,15 +1312,23 @@ void CreatureEventAI::ProcessAction(CreatureEventAI_Action const& action, uint32
                     sLog.outErrorEventAI("failed to spawn creature %u. Summon map index %u does not exist. EventID %d. CreatureID %d", action.summon_unique.creatureId, action.summon_unique.spawnId, EventId, m_creature->GetEntry());
                     return;
                 }
+            if ((*i).second.SpawnTimeSecs)
+            {
+                pCreature = m_creature->SummonCreature(action.summon_unique.creatureId, (*i).second.position_x, (*i).second.position_y, (*i).second.position_z, (*i).second.orientation, TEMPSPAWN_TIMED_OOC_OR_DEAD_DESPAWN, (*i).second.SpawnTimeSecs);
+            }
+            else
+            {
+                pCreature = m_creature->SummonCreature(action.summon_unique.creatureId, (*i).second.position_x, (*i).second.position_y, (*i).second.position_z, (*i).second.orientation, TEMPSPAWN_TIMED_OOC_DESPAWN, 0);
+            }
 
                 Creature* pCreature = NULL;
                 if ((*i).second.SpawnTimeSecs)
                 {
-                    pCreature = m_creature->SummonCreature(action.summon_unique.creatureId, (*i).second.position_x, (*i).second.position_y, (*i).second.position_z, (*i).second.orientation, TEMPSUMMON_TIMED_OOC_OR_DEAD_DESPAWN, (*i).second.SpawnTimeSecs);
+                    pCreature = m_creature->SummonCreature(action.summon_unique.creatureId, (*i).second.position_x, (*i).second.position_y, (*i).second.position_z, (*i).second.orientation, TEMPSPAWN_TIMED_OOC_OR_DEAD_DESPAWN, (*i).second.SpawnTimeSecs);
                 }
                 else
                 {
-                    pCreature = m_creature->SummonCreature(action.summon_unique.creatureId, (*i).second.position_x, (*i).second.position_y, (*i).second.position_z, (*i).second.orientation, TEMPSUMMON_TIMED_OOC_DESPAWN, 0);
+                    pCreature = m_creature->SummonCreature(action.summon_unique.creatureId, (*i).second.position_x, (*i).second.position_y, (*i).second.position_z, (*i).second.orientation, TEMPSPAWN_TIMED_OOC_DESPAWN, 0);
                 }
 
                 if (!pCreature)
@@ -1395,7 +1403,9 @@ void CreatureEventAI::Reset()
             case EVENT_T_TIMER_OOC:
             {
                 if (i->UpdateRepeatTimer(m_creature, event.timer.initialMin, event.timer.initialMax))
+                {
                     i->Enabled = true;
+                }
                 break;
             }
             // default:
@@ -1679,10 +1689,14 @@ void CreatureEventAI::UpdateAI(const uint32 diff)
                 {
                     // Do not decrement timers if event cannot trigger in this phase
                     if (!(i->Event.event_inverse_phase_mask & (1 << m_Phase)))
+                    {
                         i->Time -= m_EventDiff;
+                    }
                 }
                 else
+                {
                     i->Time = 0;
+                }
             }
 
             // Skip processing of events that have time remaining or are disabled

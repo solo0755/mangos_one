@@ -40,6 +40,8 @@
 #include "PoolManager.h"
 #include "GameEventMgr.h"
 #include "AuctionHouseBot/AuctionHouseBot.h"
+#include "CommandMgr.h"
+
 #ifdef ENABLE_ELUNA
 #include "LuaEngine.h"
 #endif /* ENABLE_ELUNA */
@@ -536,6 +538,7 @@ ChatCommand* ChatHandler::getCommandTable()
         { "locales_page_text",           SEC_ADMINISTRATOR, true,  &ChatHandler::HandleReloadLocalesPageTextCommand,         "", NULL },
         { "locales_points_of_interest",  SEC_ADMINISTRATOR, true,  &ChatHandler::HandleReloadLocalesPointsOfInterestCommand, "", NULL },
         { "locales_quest",               SEC_ADMINISTRATOR, true,  &ChatHandler::HandleReloadLocalesQuestCommand,            "", NULL },
+        { "locales_command",             SEC_ADMINISTRATOR, true,  &ChatHandler::HandleReloadLocalesCommandHelpCommand,            "", NULL },
         { "mail_level_reward",           SEC_ADMINISTRATOR, true,  &ChatHandler::HandleReloadMailLevelRewardCommand,         "", NULL },
         { "mail_loot_template",          SEC_ADMINISTRATOR, true,  &ChatHandler::HandleReloadLootTemplatesMailCommand,       "", NULL },
         { "mangos_string",               SEC_ADMINISTRATOR, true,  &ChatHandler::HandleReloadMangosStringCommand,            "", NULL },
@@ -810,6 +813,17 @@ ChatCommand* ChatHandler::getCommandTable()
         { "waterwalk",      SEC_GAMEMASTER,     false, &ChatHandler::HandleWaterwalkCommand,           "", NULL },
         { "quit",           SEC_CONSOLE,        true,  &ChatHandler::HandleQuitCommand,                "", NULL },
         { "mmap",           SEC_GAMEMASTER,     false, NULL,                                           "", mmapCommandTable },
+#ifdef ENABLE_PLAYERBOTS
+        { "bot",            SEC_PLAYER,         false, &ChatHandler::HandlePlayerbotCommand,           "", NULL },
+       //{ "rndbot",         SEC_CONSOLE,        true,  &ChatHandler::HandlePlayerbotConsoleCommand,    "", NULL },
+        { "ahbot",          SEC_GAMEMASTER,     true,  &ChatHandler::HandleAhBotCommand,               "", NULL },
+        { "gtask",          SEC_GAMEMASTER,     true,  &ChatHandler::HandleGuildTaskCommand,           "", NULL },
+        //{ "pmon",           SEC_GAMEMASTER,     true,  &ChatHandler::HandlePerfMonCommand,             "", NULL },
+        { "rndbot",         SEC_GAMEMASTER,     true,  &ChatHandler::HandleRandomPlayerbotCommand,     "", NULL },
+
+
+
+#endif
 
         { NULL,             0,                  false, NULL,                                           "", NULL }
     };
@@ -821,15 +835,15 @@ ChatCommand* ChatHandler::getCommandTable()
         // check hardcoded part integrity
         CheckIntegrity(commandTable, NULL);
 
-        QueryResult* result = WorldDatabase.Query("SELECT `name`,`security`,`help` FROM `command`");
+        QueryResult* result = WorldDatabase.Query("SELECT `id`, `command_text`,`security`,`help_text` FROM `command`");
         if (result)
         {
             do
             {
                 Field* fields = result->Fetch();
-                std::string name = fields[0].GetCppString();
-
-                SetDataForCommandInTable(commandTable, name.c_str(), fields[1].GetUInt16(), fields[2].GetCppString());
+                uint32 id = fields[0].GetUInt32();
+                std::string name = fields[1].GetCppString();
+                SetDataForCommandInTable(commandTable, id, name.c_str(), fields[2].GetUInt16(), fields[3].GetCppString());
             }
             while (result->NextRow());
             delete result;
@@ -919,7 +933,9 @@ bool ChatHandler::HasLowerSecurityAccount(WorldSession* target, uint32 target_ac
         target_sec = sAccountMgr.GetSecurity(target_account);
     }
     else
-        { return true; }                                        // caller must report error for (target==NULL && target_account==0)
+    {
+        return true;                                         // caller must report error for (target==NULL && target_account==0)
+    }
 
     if (GetAccessLevel() < target_sec || (strong && GetAccessLevel() <= target_sec))
     {
@@ -977,7 +993,9 @@ void ChatHandler::SendSysMessage(const char* str)
         // m_session == null when we're accessing these command from the console.
         ObjectGuid senderGuid;
         if (m_session)
+        {
             senderGuid = m_session->GetPlayer()->GetObjectGuid();
+        }
 
         ChatHandler::BuildChatPacket(data, CHAT_MSG_SYSTEM, line, LANG_UNIVERSAL, CHAT_TAG_NONE, senderGuid);
         m_session->SendPacket(&data);
@@ -1001,7 +1019,9 @@ void ChatHandler::SendGlobalSysMessage(const char* str, AccountTypes minSec)
         // m_session == null when we're accessing these command from the console.
         ObjectGuid senderGuid;
         if (m_session)
+        {
             senderGuid = m_session->GetPlayer()->GetObjectGuid();
+        }
 
         ChatHandler::BuildChatPacket(data, CHAT_MSG_SYSTEM, line, LANG_UNIVERSAL, CHAT_TAG_NONE, senderGuid);
         sWorld.SendGlobalMessage(&data, minSec);
@@ -1024,6 +1044,45 @@ void ChatHandler::PSendSysMessage(int32 entry, ...)
     vsnprintf(str, 2048, format, ap);
     va_end(ap);
     SendSysMessage(str);
+}
+
+void  ChatHandler::PSendSysMessageMultiline(int32 entry, ...)
+{
+    uint32 linecount = 0;
+
+    const char* format = GetMangosString(entry);
+    va_list ap;
+    char str[2048];
+    va_start(ap, entry);
+    vsnprintf(str, 2048, format, ap);
+    va_end(ap);
+
+    std::string mangosString(str);
+
+    /* Used for tracking our position within the string while iterating through it */
+    std::string::size_type pos = 0, nextpos;
+
+    /* Find the next occurance of @ in the string
+     * This is how newlines are represented */
+    while ((nextpos = mangosString.find("@@", pos)) != std::string::npos)
+    {
+        /* If these are not equal, it means a '@@' was found
+         * These are used to represent newlines in the string
+         * It is set by the code above here */
+        if (nextpos != pos)
+        {
+            /* Send the player a system message containing the substring from pos to nextpos - pos */
+            PSendSysMessage("%s", mangosString.substr(pos, nextpos - pos).c_str());
+            ++linecount;
+        }
+        pos = nextpos + 2; // +2 because there are two @ as delimiter
+    }
+
+    /* There are no more newlines in our mangosString, so we send whatever is left */
+    if (pos < mangosString.length())
+    {
+        PSendSysMessage("%s", mangosString.substr(pos).c_str());
+    }
 }
 
 void ChatHandler::PSendSysMessage(const char* format, ...)
@@ -1188,7 +1247,9 @@ ChatCommandSearchResult ChatHandler::FindCommand(ChatCommand* table, char const*
                     // command not found directly in child command list, return child command list owner
                     command = &table[i];
                     if (parentCommand)
-                        { *parentCommand = NULL; }              // we don't known parent of table list at this point
+                    {
+                        *parentCommand = NULL;               // we don't known parent of table list at this point
+                    }
 
                     text = oldchildtext;                    // restore text to stated just after parse found parent command
                     return CHAT_COMMAND_UNKNOWN_SUBCOMMAND; // we not found subcommand for table[i]
@@ -1285,7 +1346,16 @@ void ChatHandler::ExecuteCommand(const char* text)
             {
                 if (!command->Help.empty())
                 {
-                    SendSysMessage(command->Help.c_str());
+                    std::string helpText = command->Help;
+
+                    // Attemp to localize help text if not in CLI mode
+                    if (m_session)
+                    {
+                        int loc_idx = m_session->GetSessionDbLocaleIndex();
+                        sCommandMgr.GetCommandHelpLocaleString(command->Id, loc_idx, &helpText);
+                    }
+
+                    SendSysMessage(helpText.c_str());
                 }
                 else
                 {
@@ -1342,7 +1412,7 @@ void ChatHandler::ExecuteCommand(const char* text)
  *
  * All problems found while command search and updated output as to DB errors log
  */
-bool ChatHandler::SetDataForCommandInTable(ChatCommand* commandTable, const char* text, uint32 security, std::string const& help)
+bool ChatHandler::SetDataForCommandInTable(ChatCommand* commandTable, uint32 id, const char* text, uint32 security, std::string const& help)
 {
     std::string fullcommand = text;                         // original `text` can't be used. It content destroyed in command code processing.
 
@@ -1359,6 +1429,7 @@ bool ChatHandler::SetDataForCommandInTable(ChatCommand* commandTable, const char
                 DETAIL_LOG("Table `command` overwrite for command '%s' default security (%u) by %u",
                            fullcommand.c_str(), command->SecurityLevel, security);
 
+            command->Id = id;
             command->SecurityLevel = security;
             command->Help          = help;
             return true;
@@ -1516,7 +1587,16 @@ bool ChatHandler::ShowHelpForCommand(ChatCommand* table, const char* cmd)
 
     if (command && !command->Help.empty())
     {
-        SendSysMessage(command->Help.c_str());
+        std::string helpText = command->Help;
+
+        // Attemp to localize help text if not in CLI mode
+        if (m_session)
+        {
+            int loc_idx = m_session->GetSessionDbLocaleIndex();
+            sCommandMgr.GetCommandHelpLocaleString(command->Id, loc_idx, &helpText);
+        }
+
+        SendSysMessage(helpText.c_str());
     }
 
     if (childCommands)
@@ -2049,7 +2129,9 @@ bool ChatHandler::isValidChatMessage(const char* message)
                                 int8 dbIndex = sObjectMgr.GetIndexForLocale(LocaleConstant(i));
                                 if (dbIndex == -1 || il == NULL || (size_t)dbIndex >= il->Name.size())
                                     // using strange database/client combinations can lead to this case
-                                    { expectedName = linkedItem->Name1; }
+                                {
+                                    expectedName = linkedItem->Name1;
+                                }
                                 else
                                 {
                                     expectedName = il->Name[dbIndex];
@@ -2158,7 +2240,9 @@ void ChatHandler::SkipWhiteSpaces(char** args)
     }
 
     while (isWhiteSpace(**args))
-        { ++(*args); }
+    {
+        ++(*args);
+    }
 }
 
 /**
@@ -2184,7 +2268,9 @@ bool  ChatHandler::ExtractInt32(char** args, int32& val)
         *(tail++) = '\0';
     }
     else if (tail && *tail)                                 // some not whitespace symbol
-        { return false; }                                       // args not modified and can be re-parsed
+    {
+        return false;                                        // args not modified and can be re-parsed
+    }
 
     if (valRaw < std::numeric_limits<int32>::min() || valRaw > std::numeric_limits<int32>::max())
     {
@@ -2240,7 +2326,9 @@ bool  ChatHandler::ExtractUInt32Base(char** args, uint32& val, uint32 base)
         *(tail++) = '\0';
     }
     else if (tail && *tail)                                 // some not whitespace symbol
-        { return false; }                                       // args not modified and can be re-parsed
+    {
+        return false;                                        // args not modified and can be re-parsed
+    }
 
     if (valRaw > std::numeric_limits<uint32>::max())
     {
@@ -2297,7 +2385,9 @@ bool  ChatHandler::ExtractFloat(char** args, float& val)
         *(tail++) = '\0';
     }
     else if (tail && *tail)                                 // some not whitespace symbol
-        { return false; }                                       // args not modified and can be re-parsed
+    {
+        return false;                                        // args not modified and can be re-parsed
+    }
 
     // value successfully extracted
     val = float(valRaw);
@@ -2367,7 +2457,9 @@ char* ChatHandler::ExtractLiteralArg(char** args, char const* lit /*= NULL*/)
 
         int largs = 0;
         while (head[largs] && !isWhiteSpace(head[largs]))
-            { ++largs; }
+        {
+            ++largs;
+        }
 
         if (largs < l)
         {
@@ -2446,7 +2538,9 @@ char* ChatHandler::ExtractQuotedArg(char** args, bool asis /*= false*/)
     char* head = asis ? *args : tail;                       // start arg
 
     while (*tail && *tail != guard)
-        { ++tail; }
+    {
+        ++tail;
+    }
 
     if (!*tail || (tail[1] && !isWhiteSpace(tail[1])))      // fail
     {
@@ -2572,7 +2666,9 @@ char* ChatHandler::ExtractLinkArg(char** args, char const* const* linkTypes /*= 
     if (*tail != 'H')                                       // skip color part, some links can not have color part
     {
         while (*tail && *tail != '|')
-            { ++tail; }
+        {
+            ++tail;
+        }
 
         if (!*tail)
         {
@@ -2602,7 +2698,9 @@ char* ChatHandler::ExtractLinkArg(char** args, char const* const* linkTypes /*= 
             int l = strlen(linkTypes[linktype_idx]);
             if (strncmp(tail, linkTypes[linktype_idx], l) == 0 &&
                 (tail[l] == ':' || tail[l] == '|'))
-                { break; }
+            {
+                break;
+            }
         }
 
         // is search fail?
@@ -2623,7 +2721,9 @@ char* ChatHandler::ExtractLinkArg(char** args, char const* const* linkTypes /*= 
     else
     {
         while (*tail && *tail != ':')                       // skip linktype string
-            { ++tail; }
+        {
+            ++tail;
+        }
 
         if (!*tail)
         {
@@ -2637,7 +2737,9 @@ char* ChatHandler::ExtractLinkArg(char** args, char const* const* linkTypes /*= 
     char* keyStart = tail;                                  // remember key start for return
 
     while (*tail && *tail != '|' && *tail != ':')
-        { ++tail; }
+    {
+        ++tail;
+    }
 
     if (!*tail)
     {
@@ -2659,7 +2761,9 @@ char* ChatHandler::ExtractLinkArg(char** args, char const* const* linkTypes /*= 
         // something|h[name]|h|r or something:something2...|h[name]|h|r
 
         while (*tail && *tail != '|' && *tail != ':')
-            { ++tail; }
+        {
+            ++tail;
+        }
 
         if (!*tail)
         {
@@ -2672,7 +2776,9 @@ char* ChatHandler::ExtractLinkArg(char** args, char const* const* linkTypes /*= 
     // |h[name]|h|r or :something2...|h[name]|h|r
 
     while (*tail && (*tail != '|' || *(tail + 1) != 'h'))   // skip ... part if exist
-        { ++tail; }
+    {
+        ++tail;
+    }
 
     if (!*tail)
     {
@@ -2690,7 +2796,9 @@ char* ChatHandler::ExtractLinkArg(char** args, char const* const* linkTypes /*= 
     }
 
     while (*tail && (*tail != ']' || *(tail + 1) != '|'))   // skip name part
-        { ++tail; }
+    {
+        ++tail;
+    }
 
     tail += 2;                                              // skip ]|
 
@@ -2842,7 +2950,9 @@ char* ChatHandler::ExtractKeyFromLink(char** text, char const* const* linkTypes,
     if (arg)
     {
         if (found_idx)
-            { *found_idx = -1; }                                // special index case
+        {
+            *found_idx = -1;                                 // special index case
+        }
 
         return arg;
     }
@@ -3840,6 +3950,199 @@ void ChatHandler::BuildChatPacket(WorldPacket& data, ChatMsg msgtype, char const
             break;
     }
 }
+
+// Shared Helpers between command implementation files
+
+void ChatHandler::ShowFactionListHelper(FactionEntry const* factionEntry, LocaleConstant loc, FactionState const* repState /*= NULL*/, Player* target /*= NULL */)
+{
+    std::string name = factionEntry->name[loc];
+    // send faction in "id - [faction] rank reputation [visible] [at war] [own team] [unknown] [invisible] [inactive]" format
+    // or              "id - [faction] [no reputation]" format
+    std::ostringstream ss;
+    if (m_session)
+    {
+        ss << factionEntry->ID << " - |cffffffff|Hfaction:" << factionEntry->ID << "|h[" << name << " " << localeNames[loc] << "]|h|r";
+    }
+    else
+    {
+        ss << factionEntry->ID << " - " << name << " " << localeNames[loc];
+    }
+
+    if (repState)                               // and then target!=NULL also
+    {
+        ReputationRank rank = target->GetReputationMgr().GetRank(factionEntry);
+        std::string rankName = GetMangosString(ReputationRankStrIndex[rank]);
+
+        ss << " " << rankName << "|h|r (" << target->GetReputationMgr().GetReputation(factionEntry) << ")";
+
+        if (repState->Flags & FACTION_FLAG_VISIBLE)
+        {
+            ss << GetMangosString(LANG_FACTION_VISIBLE);
+        }
+        if (repState->Flags & FACTION_FLAG_AT_WAR)
+        {
+            ss << GetMangosString(LANG_FACTION_ATWAR);
+        }
+        if (repState->Flags & FACTION_FLAG_PEACE_FORCED)
+        {
+            ss << GetMangosString(LANG_FACTION_PEACE_FORCED);
+        }
+        if (repState->Flags & FACTION_FLAG_HIDDEN)
+        {
+            ss << GetMangosString(LANG_FACTION_HIDDEN);
+        }
+        if (repState->Flags & FACTION_FLAG_INVISIBLE_FORCED)
+        {
+            ss << GetMangosString(LANG_FACTION_INVISIBLE_FORCED);
+        }
+        if (repState->Flags & FACTION_FLAG_INACTIVE)
+        {
+            ss << GetMangosString(LANG_FACTION_INACTIVE);
+        }
+    }
+    else if (target)
+    {
+        ss << GetMangosString(LANG_FACTION_NOREPUTATION);
+    }
+
+    SendSysMessage(ss.str().c_str());
+}
+void ChatHandler::ShowSpellListHelper(Player* target, SpellEntry const* spellInfo, LocaleConstant loc)
+{
+    uint32 id = spellInfo->Id;
+
+    bool known = target && target->HasSpell(id);
+    bool learn = (spellInfo->Effect[EFFECT_INDEX_0] == SPELL_EFFECT_LEARN_SPELL);
+
+    uint32 talentCost = GetTalentSpellCost(id);
+
+    bool talent = (talentCost > 0);
+    bool passive = IsPassiveSpell(spellInfo);
+    bool active = target && target->HasAura(id);
+
+    // unit32 used to prevent interpreting uint8 as char at output
+    // find rank of learned spell for learning spell, or talent rank
+    uint32 rank = talentCost ? talentCost : sSpellMgr.GetSpellRank(learn ? spellInfo->EffectTriggerSpell[EFFECT_INDEX_0] : id);
+
+    // send spell in "id - [name, rank N] [talent] [passive] [learn] [known]" format
+    std::ostringstream ss;
+    if (m_session)
+    {
+        ss << id << " - |cffffffff|Hspell:" << id << "|h[" << spellInfo->SpellName[loc];
+    }
+    else
+    {
+        ss << id << " - " << spellInfo->SpellName[loc];
+    }
+
+    // include rank in link name
+    if (rank)
+    {
+        ss << GetMangosString(LANG_SPELL_RANK) << rank;
+    }
+
+    if (m_session)
+    {
+        ss << " " << localeNames[loc] << "]|h|r";
+    }
+    else
+    {
+        ss << " " << localeNames[loc];
+    }
+
+    if (talent)
+    {
+        ss << GetMangosString(LANG_TALENT);
+    }
+    if (passive)
+    {
+        ss << GetMangosString(LANG_PASSIVE);
+    }
+    if (learn)
+    {
+        ss << GetMangosString(LANG_LEARN);
+    }
+    if (known)
+    {
+        ss << GetMangosString(LANG_KNOWN);
+    }
+    if (active)
+    {
+        ss << GetMangosString(LANG_ACTIVE);
+    }
+
+    SendSysMessage(ss.str().c_str());
+}
+
+bool ChatHandler::ShowPlayerListHelper(QueryResult* result, uint32* limit, bool title, bool error)
+{
+    if (!result)
+    {
+        if (error)
+        {
+            PSendSysMessage(LANG_NO_PLAYERS_FOUND);
+            SetSentErrorMessage(true);
+        }
+        return false;
+    }
+
+    if (!m_session && title)
+    {
+        SendSysMessage(LANG_CHARACTERS_LIST_BAR);
+        SendSysMessage(LANG_CHARACTERS_LIST_HEADER);
+        SendSysMessage(LANG_CHARACTERS_LIST_BAR);
+    }
+
+    if (result)
+    {
+        ///- Circle through them. Display username and GM level
+        do
+        {
+            // check limit
+            if (limit)
+            {
+                if (*limit == 0)
+                {
+                    break;
+                }
+                --* limit;
+            }
+
+            Field* fields = result->Fetch();
+            uint32 guid = fields[0].GetUInt32();
+            std::string name = fields[1].GetCppString();
+            uint8 race = fields[2].GetUInt8();
+            uint8 class_ = fields[3].GetUInt8();
+            uint32 level = fields[4].GetUInt32();
+
+            ChrRacesEntry const* raceEntry = sChrRacesStore.LookupEntry(race);
+            ChrClassesEntry const* classEntry = sChrClassesStore.LookupEntry(class_);
+
+            char const* race_name = raceEntry ? raceEntry->name[GetSessionDbcLocale()] : "<?>";
+            char const* class_name = classEntry ? classEntry->name[GetSessionDbcLocale()] : "<?>";
+
+            if (!m_session)
+            {
+                PSendSysMessage(LANG_CHARACTERS_LIST_LINE_CONSOLE, guid, name.c_str(), race_name, class_name, level);
+            }
+            else
+            {
+                PSendSysMessage(LANG_CHARACTERS_LIST_LINE_CHAT, guid, name.c_str(), name.c_str(), race_name, class_name, level);
+            }
+        } while (result->NextRow());
+
+        delete result;
+    }
+
+    if (!m_session)
+    {
+        SendSysMessage(LANG_CHARACTERS_LIST_BAR);
+    }
+
+    return true;
+}
+
+
 
 // Instantiate template for helper function
 template void ChatHandler::ShowNpcOrGoSpawnInformation<Creature>(uint32 guid);

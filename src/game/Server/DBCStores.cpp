@@ -216,7 +216,9 @@ inline void LoadDBC(uint32& availableDbcLocales, BarGoLink& bar, StoreProblemLis
 
             std::string dbc_filename_loc = dbc_path + fullLocaleNameList[i].name + "/" + filename;
             if (!storage.LoadStringsFrom(dbc_filename_loc.c_str()))
-                { availableDbcLocales &= ~(1 << i); }           // mark as not available for speedup next checks
+            {
+                availableDbcLocales &= ~(1 << i);            // mark as not available for speedup next checks
+            }
         }
     }
     else
@@ -356,7 +358,7 @@ void LoadDBCStores(const std::string& dataPath)
         }
 
         SpellEntry const* spellInfo = sSpellStore.LookupEntry(skillLine->spellId);
-        if (spellInfo && (spellInfo->Attributes & (SPELL_ATTR_UNK4 | SPELL_ATTR_PASSIVE | SPELL_ATTR_HIDE_SPELL | SPELL_ATTR_UNK8)) == (SPELL_ATTR_UNK4 | SPELL_ATTR_PASSIVE | SPELL_ATTR_HIDE_SPELL | SPELL_ATTR_UNK8))
+        if (spellInfo && (spellInfo->Attributes & (SPELL_ATTR_ABILITY | SPELL_ATTR_PASSIVE | SPELL_ATTR_HIDDEN_CLIENTSIDE | SPELL_ATTR_HIDE_IN_COMBAT_LOG)) == (SPELL_ATTR_ABILITY | SPELL_ATTR_PASSIVE | SPELL_ATTR_HIDDEN_CLIENTSIDE | SPELL_ATTR_HIDE_IN_COMBAT_LOG))
         {
             for (unsigned int i = 1; i < sCreatureFamilyStore.GetNumRows(); ++i)
             {
@@ -796,7 +798,9 @@ ChatChannelsEntry const* GetChannelEntryFor(const std::string& name)
             std::size_t removeString = entryName.find("%s");
 
             if (removeString != std::string::npos)
+            {
                 entryName.replace(removeString, 2, "");
+            }
 
             if (name.find(entryName) != std::string::npos)
             {

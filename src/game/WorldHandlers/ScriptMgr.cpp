@@ -749,7 +749,23 @@ void ScriptMgr::LoadScripts(DBScriptType type)
                     }
                 break;
             }
+            case SCRIPT_COMMAND_DESPAWN_GO:                   // 40
+            {
+                if (!tmp.despawnGo.goGuid)
+                {
+                    sLog.outErrorDb("Table `db_scripts [type = %d]` has no gameobject defined in SCRIPT_COMMAND_DESPAWN_GO for script id %u", type, tmp.id);
+                    continue;
+                }
 
+                GameObjectData const* data = sObjectMgr.GetGOData(tmp.despawnGo.goGuid);
+                if (!data)
+                {
+                    sLog.outErrorDb("Table `db_scripts [type = %d]` has invalid gameobject (GUID: %u) in SCRIPT_COMMAND_RESPAWN_GO for script id %u", type, tmp.despawnGo.goGuid, tmp.id);
+                    continue;
+                }
+
+                break;
+            }
             default:
             {
                 sLog.outErrorDb("Table `db_scripts [type = %d]` unknown command %u, skipping.", type, tmp.command);
@@ -779,7 +795,9 @@ void ScriptMgr::LoadDbScripts(DBScriptType t)
     std::set<uint32> eventIds;                              // Store possible event ids
 
     if (t == DBS_ON_EVENT)
-      CollectPossibleEventIds(eventIds);
+    {
+        CollectPossibleEventIds(eventIds);
+    }
 
         ACE_GUARD(ACE_Thread_Mutex, _g, m_lock)
     LoadScripts(t);
@@ -792,12 +810,16 @@ void ScriptMgr::LoadDbScripts(DBScriptType t)
             case DBS_ON_QUEST_START:
             case DBS_ON_QUEST_END:
                 if (!sObjectMgr.GetQuestTemplate(itr->first))
-                  sLog.outErrorDb("Table `db_scripts [type = %d]` has not existing quest (Id: %u) as script id", t, itr->first);
+                {
+                    sLog.outErrorDb("Table `db_scripts [type = %d]` has not existing quest (Id: %u) as script id", t, itr->first);
+                }
                 break;
 
             case DBS_ON_CREATURE_DEATH:
                 if (!sObjectMgr.GetCreatureTemplate(itr->first))
-                  sLog.outErrorDb("Table `db_scripts [type = %d]` has not existing creature (Entry: %u) as script id", t, itr->first);
+                {
+                    sLog.outErrorDb("Table `db_scripts [type = %d]` has not existing creature (Entry: %u) as script id", t, itr->first);
+                }
                 break;
 
             case DBS_ON_SPELL:
@@ -820,24 +842,32 @@ void ScriptMgr::LoadDbScripts(DBScriptType t)
                     }
                 }
                 if (!found)
-                  sLog.outErrorDb("Table `db_scripts [type = %d]` has unsupported spell (Id: %u)", t, itr->first);
+                {
+                    sLog.outErrorDb("Table `db_scripts [type = %d]` has unsupported spell (Id: %u)", t, itr->first);
+                }
                 break;
             }
             case DBS_ON_GO_USE:
                 if (!sObjectMgr.GetGOData(itr->first))
-                  sLog.outErrorDb("Table `db_scripts [type = %d]`, has not existing gameobject (GUID: %u) as script id", t, itr->first);
+                {
+                    sLog.outErrorDb("Table `db_scripts [type = %d]`, has not existing gameobject (GUID: %u) as script id", t, itr->first);
+                }
                 break;
 
             case DBS_ON_GOT_USE:
                 if (!sObjectMgr.GetGameObjectInfo(itr->first))
-                  sLog.outErrorDb("Table `db_scripts [type = %d]` has not existing gameobject (Entry: %u) as script id", t, itr->first);
+                {
+                    sLog.outErrorDb("Table `db_scripts [type = %d]` has not existing gameobject (Entry: %u) as script id", t, itr->first);
+                }
                 break;
 
             case DBS_ON_EVENT:
             {
                 std::set<uint32>::const_iterator itr2 = eventIds.find(itr->first);
                 if (itr2 == eventIds.end())
-                  sLog.outErrorDb("Table `db_scripts [type = %d]` has script (Id: %u) not referring to any fitting gameobject_template or any spell effect %u or path taxi node data", t, itr->first, SPELL_EFFECT_SEND_EVENT);
+                {
+                    sLog.outErrorDb("Table `db_scripts [type = %d]` has script (Id: %u) not referring to any fitting gameobject_template or any spell effect %u or path taxi node data", t, itr->first, SPELL_EFFECT_SEND_EVENT);
+                }
                 break;
             }
             default:
@@ -881,10 +911,14 @@ void ScriptMgr::CheckScriptTexts(std::set<int32>& ids)
                     for (int i = 0; i < MAX_TEXT_ID; ++i)
                     {
                         if (itrC->textId[i] && !sObjectMgr.GetMangosStringLocale(itrC->textId[i]))
-                          sLog.outErrorDb("Table `db_script_string` is missing string id %u, used in `db_script [type = %d]` table, id %u.", itrC->textId[i], t, itrCM->first);
+                        {
+                            sLog.outErrorDb("Table `db_script_string` is missing string id %u, used in `db_script [type = %d]` table, id %u.", itrC->textId[i], t, itrCM->first);
+                        }
 
                         if (ids.find(itrC->textId[i]) != ids.end())
-                          ids.erase(itrC->textId[i]);
+                        {
+                            ids.erase(itrC->textId[i]);
+                        }
                     }
                 }
             }
@@ -1402,7 +1436,9 @@ bool ScriptAction::HandleScriptStep()
             {
                 GameObjectData const* goData = sObjectMgr.GetGOData(m_script->respawnGo.goGuid);
                 if (!goData)
-                    { break; }                                  // checked at load
+                {
+                    break;                                   // checked at load
+                }
 
                 // TODO - This was a change, was before current map of source
                 pGo = m_map->GetGameObject(ObjectGuid(HIGHGUID_GAMEOBJECT, goData->id, m_script->respawnGo.goGuid));
@@ -1431,7 +1467,9 @@ bool ScriptAction::HandleScriptStep()
             }
 
             if (pGo->isSpawned())
-                { break; }                                      // gameobject already spawned
+            {
+                break;                                       // gameobject already spawned
+            }
 
             pGo->SetLootState(GO_READY);
             pGo->SetRespawnTime(time_to_despawn);           // despawn object in ? seconds
@@ -1451,7 +1489,7 @@ bool ScriptAction::HandleScriptStep()
             float z = m_script->z;
             float o = m_script->o;
 
-            Creature* pCreature = pSource->SummonCreature(m_script->summonCreature.creatureEntry, x, y, z, o, m_script->summonCreature.despawnDelay ? TEMPSUMMON_TIMED_OOC_OR_DEAD_DESPAWN : TEMPSUMMON_DEAD_DESPAWN, m_script->summonCreature.despawnDelay, (m_script->data_flags & SCRIPT_FLAG_COMMAND_ADDITIONAL) ? true : false);
+            Creature* pCreature = pSource->SummonCreature(m_script->summonCreature.creatureEntry, x, y, z, o, m_script->summonCreature.despawnDelay ? TEMPSPAWN_TIMED_OOC_OR_DEAD_DESPAWN : TEMPSPAWN_DEAD_DESPAWN, m_script->summonCreature.despawnDelay, (m_script->data_flags & SCRIPT_FLAG_COMMAND_ADDITIONAL) ? true : false);
             if (!pCreature)
             {
                 sLog.outErrorDb(" DB-SCRIPTS: Process table `db_scripts [type = %d]` id %u, command %u failed for creature (entry: %u).", m_type, m_script->id, m_script->command, m_script->summonCreature.creatureEntry);
@@ -1501,7 +1539,9 @@ bool ScriptAction::HandleScriptStep()
 
             if ((m_script->command == SCRIPT_COMMAND_OPEN_DOOR && pDoor->GetGoState() != GO_STATE_READY) ||
                 (m_script->command == SCRIPT_COMMAND_CLOSE_DOOR && pDoor->GetGoState() == GO_STATE_READY))
-                { break; }                                      // to be opened door already open, or to be closed door already closed
+            {
+                break;                                       // to be opened door already open, or to be closed door already closed
+            }
 
             pDoor->UseDoorOrButton(time_to_reset);
 
@@ -1550,13 +1590,17 @@ bool ScriptAction::HandleScriptStep()
                 ++filledCount;
             if (filledCount > 0)
                 if (uint32 randomField = urand(0, filledCount))               // Random selection resulted in one of the dataint fields
+                {
                     spell = m_script->textId[randomField - 1];
+                }
 
             // TODO: when GO cast implemented, code below must be updated accordingly to also allow GO spell cast
             if (pSource && pSource->GetTypeId() == TYPEID_GAMEOBJECT)
             {
                 ((Unit*)pTarget)->CastSpell(((Unit*)pTarget), spell, true, NULL, NULL, pSource->GetObjectGuid());
-                { break; }
+                {
+                    break;
+                }
             }
 
             if (LogIfNotUnit(pSource))
@@ -1587,7 +1631,9 @@ bool ScriptAction::HandleScriptStep()
             }
 
             if (m_script->data_flags & SCRIPT_FLAG_COMMAND_ADDITIONAL)
+            {
                 pSource->PlayMusic(m_script->playSound.soundId, pSoundTarget);
+            }
             else
             {
                 if (m_script->playSound.flags & 2)
@@ -1712,7 +1758,9 @@ bool ScriptAction::HandleScriptStep()
                 break;
             }
             if (pSource->GetTypeId() == TYPEID_PLAYER && m_script->morph.creatureOrModelEntry)  // only demorph to players
+            {
                 break;
+            }
 
             if (!m_script->morph.creatureOrModelEntry)
             {
@@ -2009,7 +2057,9 @@ bool ScriptAction::HandleScriptStep()
                 return false;
             }
             if (LogIfNotUnit(pTarget))
+            {
                 break;
+            }
 
             ((Creature*)pSource)->AI()->SendAIEventAround(AIEventType(m_script->sendAIEvent.eventType), (Unit*)pTarget, 0, float(m_script->sendAIEvent.radius));
             break;
@@ -2049,9 +2099,13 @@ bool ScriptAction::HandleScriptStep()
             {
                 float orientation;
                 if (m_script->data_flags & SCRIPT_FLAG_COMMAND_ADDITIONAL)
+                {
                     orientation = pSource->GetOrientation() + m_script->o + 2 * M_PI_F;
+                }
                 else
+                {
                     orientation = m_script->o;
+                }
 
                 pSource->GetRandomPoint(pTarget->GetPositionX(), pTarget->GetPositionY(), pTarget->GetPositionZ(), m_script->moveDynamic.maxDist, x, y, z,
                                         m_script->moveDynamic.minDist, (orientation == 0.0f ? NULL : &orientation));
@@ -2074,9 +2128,13 @@ bool ScriptAction::HandleScriptStep()
 
             MailSender sender;
             if (m_script->sendMail.altSender)
+            {
                 sender = MailSender(MAIL_CREATURE, m_script->sendMail.altSender);
+            }
             else
+            {
                 sender = MailSender(pSource);
+            }
             uint32 deliverDelay = m_script->textId[0] > 0 ? (uint32)m_script->textId[0] : 0;
 
             MailDraft(m_script->sendMail.mailTemplateId).SendMailTo(static_cast<Player*>(pTarget), sender, MAIL_CHECK_MASK_HAS_BODY, deliverDelay);
@@ -2092,6 +2150,32 @@ bool ScriptAction::HandleScriptStep()
             ((Creature*)pSource)->UpdateEntry(m_script->changeEntry.creatureEntry);
             break;
         }
+        case SCRIPT_COMMAND_DESPAWN_GO:                     // 40
+        {
+
+            uint32 goEntry;
+            GameObject* pGo;
+            if (!m_script->despawnGo.goGuid)
+            {
+                sLog.outErrorDb("Table `db_scripts [type = %d]` has no gameobject defined in SCRIPT_COMMAND_DESPAWN_GO for script id %u", m_type, m_script->id);
+                break;
+            }
+
+            GameObjectData const* goData = sObjectMgr.GetGOData(m_script->despawnGo.goGuid);
+            if (!goData)
+            {
+                sLog.outErrorDb("Table `db_scripts [type = %d]` has invalid gameobject (GUID: %u) in SCRIPT_COMMAND_RESPAWN_GO for script id %u", m_type, m_script->despawnGo.goGuid, m_script->id);
+                break;
+            }
+
+            pGo = m_map->GetGameObject(ObjectGuid(HIGHGUID_GAMEOBJECT, goData->id, m_script->despawnGo.goGuid));
+
+            pGo->SetRespawnTime(m_script->despawnGo.respawnTime);
+            pGo->SetLootState(GO_JUST_DEACTIVATED);
+
+            break;
+        }
+
         default:
             sLog.outErrorDb(" DB-SCRIPTS: Process table `db_scripts [type = %d]` id %u, command %u unknown command used.", m_type, m_script->id, m_script->command);
             break;
@@ -2182,11 +2266,15 @@ void ScriptMgr::LoadScriptBinding()
             break;
         case SCRIPTED_BATTLEGROUND:
             if (MapEntry const* mapEntry = sMapStore.LookupEntry(uint32(id)))
+            {
                 exists = mapEntry->IsBattleGround();
+            }
             break;
         case SCRIPTED_INSTANCE:
             if (MapEntry const* mapEntry = sMapStore.LookupEntry(uint32(id)))
+            {
                 exists = mapEntry->IsDungeon();
+            }
             break;
         case SCRIPTED_CONDITION:
             exists = sConditionStorage.LookupEntry<PlayerCondition>(uint32(id));
@@ -2202,7 +2290,9 @@ void ScriptMgr::LoadScriptBinding()
         }
 
         if (type == SCRIPTED_SPELL || type == SCRIPTED_AURASPELL)
+        {
             id |= uint32(data) << 24;   //incorporate spell effect number into the key
+        }
 
         m_scriptBind[type][id] = scriptId;
     }
@@ -2299,7 +2389,9 @@ uint32 ScriptMgr::GetBoundScriptId(ScriptedObjectType entity, int32 entry)
     {
         EntryToScriptIdMap::iterator it = m_scriptBind[entity].find(entry);
         if (it != m_scriptBind[entity].end())
+        {
             id = it->second;
+        }
     }
     else
         sLog.outErrorScriptLib("asking a script for non-existing entity type %u!", entity);
@@ -2330,6 +2422,16 @@ CreatureAI* ScriptMgr::GetCreatureAI(Creature* pCreature)
 
 #ifdef ENABLE_SD3
     return SD3::GetCreatureAI(pCreature);
+#else
+    return NULL;
+#endif
+}
+
+GameObjectAI* ScriptMgr::GetGameObjectAI(GameObject* pGo)
+{
+    // TODO - expose in ELuna
+#ifdef ENABLE_SD3
+    return SD3::GetGameObjectAI(pGo);
 #else
     return NULL;
 #endif
@@ -2576,6 +2678,16 @@ bool ScriptMgr::OnGameObjectUse(Player* pPlayer, GameObject* pGameObject)
 #endif
 }
 
+bool ScriptMgr::OnGameObjectUse(Unit* pUnit, GameObject* pGameObject)
+{
+    // TODO Add Eluna support
+
+#ifdef ENABLE_SD3
+    return SD3::GOUse(pUnit, pGameObject);
+#else
+    return false;
+#endif
+}
 bool ScriptMgr::OnItemUse(Player* pPlayer, Item* pItem, SpellCastTargets const& targets)
 {
     // Used by Eluna
@@ -2764,10 +2876,14 @@ void ScriptMgr::CollectPossibleEventIds(std::set<uint32>& eventIds)
             TaxiPathNodeEntry const& node = sTaxiPathNodesByPath[path_idx][node_idx];
 
             if (node.arrivalEventID)
+            {
                 eventIds.insert(node.arrivalEventID);
+            }
 
             if (node.departureEventID)
+            {
                 eventIds.insert(node.departureEventID);
+            }
         }
     }
 #endif
@@ -2804,7 +2920,9 @@ bool StartEvents_Event(Map* map, uint32 id, Object* source, Object* target, bool
 #else
             if (map->IsBattleGroundOrArena())
 #endif
-                { bg = ((BattleGroundMap*)map)->GetBG(); }
+            {
+                bg = ((BattleGroundMap*)map)->GetBG();
+            }
             else                                            // Use the go, because GOs don't move
             {
                 opvp = sOutdoorPvPMgr.GetScript(((GameObject*)source)->GetZoneId());
